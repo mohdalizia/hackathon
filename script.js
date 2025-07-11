@@ -1,9 +1,36 @@
-// ✅ Handle Google Login
-function handleCredentialResponse(response) {
-  const user = parseJwt(response.credential);
-  const name = user.name;
-  
-  // Optional: Display welcome message
+document.addEventListener("DOMContentLoaded", () => {
+  const menuBtn = document.getElementById('menuBtn');
+  const menuOptions = document.getElementById('menuOptions');
+
+  // Toggle Menu
+  menuBtn?.addEventListener('click', () => {
+    const isOpen = menuOptions.style.display === 'flex';
+    menuOptions.style.display = isOpen ? 'none' : 'flex';
+    menuBtn.textContent = isOpen ? '≡' : '✕';
+  });
+
+  // Google Login Click Event
+  const googleBtn = document.getElementById('googleLoginBtn');
+  googleBtn?.addEventListener('click', () => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: '678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com',
+      scope: 'profile email',
+      callback: (tokenResponse) => {
+        google.accounts.oauth2.userinfo.get({
+          access_token: tokenResponse.access_token,
+          callback: (userInfo) => {
+            showWelcome(userInfo.name);
+            triggerCoverTransition();
+          }
+        });
+      }
+    });
+    client.requestAccessToken();
+  });
+});
+
+// Show welcome message
+function showWelcome(name) {
   const welcomeMsg = document.createElement('div');
   welcomeMsg.textContent = `Welcome, ${name}!`;
   welcomeMsg.style.cssText = `
@@ -18,22 +45,9 @@ function handleCredentialResponse(response) {
     z-index: 10000;
   `;
   document.body.appendChild(welcomeMsg);
-
-  // Now trigger the transition
-  triggerCoverTransition();
 }
 
-// ✅ Helper: Decode Google token
-function parseJwt(token) {
-  const base64Url = token.split('.')[1];
-  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-  }).join(''));
-  return JSON.parse(jsonPayload);
-}
-
-// ✅ Cover transition effect
+// Trigger the cover page transition
 function triggerCoverTransition() {
   const cover = document.getElementById('cover');
   const coverImage = document.getElementById('coverImage');
@@ -41,7 +55,6 @@ function triggerCoverTransition() {
   const glow = document.getElementById('glow');
 
   coverImage.classList.add('zoomed');
-
   setTimeout(() => glow.classList.add('active'), 1000);
   setTimeout(() => {
     cover.style.opacity = 0;
@@ -50,15 +63,3 @@ function triggerCoverTransition() {
   }, 3000);
   setTimeout(() => cover.style.display = 'none', 4000);
 }
-
-// ✅ Menu button (optional but part of your UI)
-document.addEventListener("DOMContentLoaded", () => {
-  const menuBtn = document.getElementById('menuBtn');
-  const menuOptions = document.getElementById('menuOptions');
-
-  menuBtn?.addEventListener('click', () => {
-    const isOpen = menuOptions.style.display === 'flex';
-    menuOptions.style.display = isOpen ? 'none' : 'flex';
-    menuBtn.textContent = isOpen ? '≡' : '✕';
-  });
-});
