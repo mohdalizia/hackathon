@@ -1,17 +1,29 @@
-const cover = document.getElementById('cover');
-const coverImage = document.getElementById('coverImage');
-const home = document.getElementById('home');
-const glow = document.getElementById('glow');
-const menuBtn = document.getElementById('menuBtn');
-const menuOptions = document.getElementById('menuOptions');
-
+// ✅ Handle Google Login
 function handleCredentialResponse(response) {
   const user = parseJwt(response.credential);
   const name = user.name;
-  document.body.innerHTML += `<div style="position:fixed;top:20px;right:20px;padding:10px 16px;background:gold;color:black;border-radius:10px;font-weight:bold;z-index:10000">Welcome, ${name}!</div>`;
+  
+  // Optional: Display welcome message
+  const welcomeMsg = document.createElement('div');
+  welcomeMsg.textContent = `Welcome, ${name}!`;
+  welcomeMsg.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: gold;
+    color: black;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-weight: bold;
+    z-index: 10000;
+  `;
+  document.body.appendChild(welcomeMsg);
+
+  // Now trigger the transition
   triggerCoverTransition();
 }
 
+// ✅ Helper: Decode Google token
 function parseJwt(token) {
   const base64Url = token.split('.')[1];
   const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -21,12 +33,15 @@ function parseJwt(token) {
   return JSON.parse(jsonPayload);
 }
 
+// ✅ Cover transition effect
 function triggerCoverTransition() {
-  if (cover.classList.contains("done")) return;
-  cover.classList.add("done");
+  const cover = document.getElementById('cover');
+  const coverImage = document.getElementById('coverImage');
+  const home = document.getElementById('home');
+  const glow = document.getElementById('glow');
 
-  createSparkles(window.innerWidth / 2, window.innerHeight / 2);
   coverImage.classList.add('zoomed');
+
   setTimeout(() => glow.classList.add('active'), 1000);
   setTimeout(() => {
     cover.style.opacity = 0;
@@ -36,24 +51,14 @@ function triggerCoverTransition() {
   setTimeout(() => cover.style.display = 'none', 4000);
 }
 
-function createSparkles(x, y) {
-  for (let i = 0; i < 20; i++) {
-    const sparkle = document.createElement('div');
-    sparkle.className = 'sparkle';
-    const angle = Math.random() * 2 * Math.PI;
-    const distance = Math.random() * 60 + 20;
-    const dx = Math.cos(angle) * distance;
-    const dy = Math.sin(angle) * distance;
-    sparkle.style.left = `${x}px`;
-    sparkle.style.top = `${y}px`;
-    sparkle.style.setProperty('--scatter-transform', `translate(${dx}px, ${dy}px)`);
-    document.body.appendChild(sparkle);
-    setTimeout(() => sparkle.remove(), 800);
-  }
-}
+// ✅ Menu button (optional but part of your UI)
+document.addEventListener("DOMContentLoaded", () => {
+  const menuBtn = document.getElementById('menuBtn');
+  const menuOptions = document.getElementById('menuOptions');
 
-menuBtn.addEventListener('click', () => {
-  const isOpen = menuOptions.style.display === 'flex';
-  menuOptions.style.display = isOpen ? 'none' : 'flex';
-  menuBtn.textContent = isOpen ? '≡' : '✕';
+  menuBtn?.addEventListener('click', () => {
+    const isOpen = menuOptions.style.display === 'flex';
+    menuOptions.style.display = isOpen ? 'none' : 'flex';
+    menuBtn.textContent = isOpen ? '≡' : '✕';
+  });
 });
