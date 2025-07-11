@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Marauder’s Map Login</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- COVER PAGE -->
+  <div class="cover-page" id="cover">
+    <img src="Images/cover.png" class="bg" id="coverImage" alt="Marauder Map" />
+    <div class="glow" id="glow"></div>
+
+    <!-- Google Sign-In -->
+    <div id="g_id_onload"
+         data-client_id="678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="signin_with"
+         data-shape="pill"
+         data-logo_alignment="left">
+    </div>
+  </div>
+
+  <!-- HOME PAGE -->
+  <div class="home-page" id="home">
+    <h1 id="welcomeMsg">Welcome to the Map!</h1>
+    <!-- Floating Menu -->
+    <div class="menu-container">
+      <button id="menuBtn">≡</button>
+      <div class="menu-options" id="menuOptions">
+        <button>Your Profile</button>
+        <button>View Room</button>
+        <button>Join Room</button>
+        <button>Settings</button>
+        <button>Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
