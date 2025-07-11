@@ -3,35 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Marauder’s Map Login</title>
+  <title>Marauder’s Map</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
   <!-- COVER PAGE -->
   <div class="cover-page" id="cover">
     <img src="Images/cover.png" class="bg" id="coverImage" alt="Marauder Map" />
     <div class="glow" id="glow"></div>
 
-    <!-- Google Sign-In -->
+    <!-- Google Sign-In Button -->
     <div id="g_id_onload"
          data-client_id="678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com"
-         data-callback="handleCredentialResponse"
-         data-auto_prompt="false">
+         data-callback="handleCredentialResponse">
     </div>
+
     <div class="g_id_signin"
          data-type="standard"
-         data-size="large"
-         data-theme="outline"
-         data-text="signin_with"
          data-shape="pill"
+         data-theme="filled_black"
+         data-size="large"
+         data-text="sign_in_with"
          data-logo_alignment="left">
     </div>
   </div>
 
   <!-- HOME PAGE -->
   <div class="home-page" id="home">
-    <h1 id="welcomeMsg">Welcome to the Map!</h1>
+    <h1>JIIT College Map</h1>
+
     <!-- Floating Menu -->
     <div class="menu-container">
       <button id="menuBtn">≡</button>
