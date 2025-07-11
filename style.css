@@ -1,18 +1,17 @@
-.magic-btn {
+.g-signin-button {
   padding: 12px 24px;
-  background: black;
+  background-color: maroon;
   color: white;
-  border: 2px solid gold;
+  border: none;
   border-radius: 30px;
   font-size: 16px;
-  font-family: 'Cinzel', serif;
+  font-weight: bold;
   cursor: pointer;
-  box-shadow: 0 0 10px gold;
   z-index: 10;
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease;
 }
-.magic-btn:hover {
-  background: gold;
-  color: black;
-  box-shadow: 0 0 20px gold;
+
+.g-signin-button:hover {
+  transform: scale(1.05);
 }
