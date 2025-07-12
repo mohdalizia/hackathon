@@ -2,27 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Marauder’s Map</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
   <!-- SIGN-IN PAGE -->
-  <div class="signin-page" id="signin">
-    <div class="signin-overlay">
-      <div id="g_id_onload"
-           data-client_id="678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com"
-           data-callback="handleCredentialResponse">
-      </div>
-      <div class="g_id_signin"
-           data-type="standard"
-           data-shape="pill"
-           data-theme="filled_black"
-           data-size="large"
-           data-text="sign_in_with"
-           data-logo_alignment="left">
-      </div>
+  <div class="signin-page" id="signinPage">
+    <img src="Images/Untitled-1.png" alt="Sign In Background" class="signin-bg" />
+    
+    <!-- Google Sign-In Button -->
+    <div id="g_id_onload"
+         data-client_id="678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="pill"
+         data-theme="filled_black"
+         data-size="large"
+         data-text="sign_in_with"
+         data-logo_alignment="left">
     </div>
   </div>
 
