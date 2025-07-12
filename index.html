@@ -3,40 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Marauder’s Map</title>
+  <title>Marauder's Map</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
 </head>
 <body>
-
   <!-- SIGN-IN PAGE -->
-  <div class="signin-page" id="signinPage">
-    <img src="Images/Untitled-1.png" alt="Sign In Background" class="signin-bg" />
-    
-    <!-- Google Sign-In Button -->
-    <div id="g_id_onload"
-         data-client_id="678440281179-jqiml6orsrn6beunlgbe0sgav3970v2r.apps.googleusercontent.com"
-         data-callback="handleCredentialResponse">
-    </div>
-
-    <div class="g_id_signin"
-         data-type="standard"
-         data-shape="pill"
-         data-theme="filled_black"
-         data-size="large"
-         data-text="sign_in_with"
-         data-logo_alignment="left">
-    </div>
+  <div class="sign-in-page" id="signIn">
+    <img src="Images/Untitled-1.png" class="signin-bg" alt="Sign In Background" />
+    <button onclick="signInWithGoogle()" class="custom-signin-button">Sign in with Google</button>
   </div>
-
+  
   <!-- COVER PAGE -->
   <div class="cover-page" id="cover">
     <img src="Images/cover.png" class="bg" id="coverImage" alt="Marauder Map" />
     <div class="glow" id="glow"></div>
   </div>
-
+  
   <!-- HOME PAGE -->
   <div class="home-page" id="home">
+    <img src="Images/home-page.png" alt="Map" class="map-image" />
     <h1>JIIT College Map</h1>
     <div class="menu-container">
       <button id="menuBtn">≡</button>
@@ -45,11 +34,17 @@
         <button>View Room</button>
         <button>Join Room</button>
         <button>Settings</button>
-        <button>Logout</button>
+        <button onclick="logout()">Logout</button>
       </div>
     </div>
+    
+    <!-- Zoom Controls -->
+    <div class="zoom-controls">
+      <button id="zoomIn">+</button>
+      <button id="zoomOut">−</button>
+    </div>
   </div>
-
+  
   <script src="script.js"></script>
 </body>
 </html>
