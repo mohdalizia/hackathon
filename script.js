@@ -1,4 +1,4 @@
-// Google Login
+// Google Sign-In handler
 function handleCredentialResponse(response) {
   const user = parseJwt(response.credential);
   const name = user.name;
@@ -19,32 +19,34 @@ function handleCredentialResponse(response) {
   `;
   document.body.appendChild(welcomeMsg);
 
-  // Go to cover screen
-  document.getElementById("signin").style.display = "none";
-  document.getElementById("cover").style.display = "flex";
+  // Transition to next page
+  document.getElementById('signin').style.display = 'none';
+  document.getElementById('cover').style.opacity = 1;
 }
 
+// Decode Google JWT
 function parseJwt(token) {
   const base64Url = token.split('.')[1];
   const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
-    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-  ).join(''));
+  const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
   return JSON.parse(jsonPayload);
 }
 
-// Cover Page Animation
+// COVER PAGE logic
 const cover = document.getElementById('cover');
 const coverImage = document.getElementById('coverImage');
 const home = document.getElementById('home');
 const glow = document.getElementById('glow');
-
 let started = false;
-cover?.addEventListener('click', (e) => {
+
+cover.addEventListener('click', (e) => {
   if (started) return;
   started = true;
 
   createSparkles(e.clientX, e.clientY);
+
   coverImage.classList.add('zoomed');
   setTimeout(() => glow.classList.add('active'), 1000);
   setTimeout(() => {
@@ -55,6 +57,7 @@ cover?.addEventListener('click', (e) => {
   setTimeout(() => cover.style.display = 'none', 4000);
 });
 
+// Sparkle generator
 function createSparkles(x, y) {
   for (let i = 0; i < 20; i++) {
     const sparkle = document.createElement('div');
@@ -74,7 +77,7 @@ function createSparkles(x, y) {
   }
 }
 
-// Menu Toggle
+// Menu toggle
 document.addEventListener("DOMContentLoaded", () => {
   const menuBtn = document.getElementById('menuBtn');
   const menuOptions = document.getElementById('menuOptions');
