@@ -1,10 +1,11 @@
-// Google Sign-In handler
 function handleCredentialResponse(response) {
   const user = parseJwt(response.credential);
   const name = user.name;
 
-  // Optional: Welcome message
-  const welcomeMsg = document.createElement('div');
+  document.getElementById("signin").style.display = "none";
+  triggerCoverTransition();
+
+  const welcomeMsg = document.createElement("div");
   welcomeMsg.textContent = `Welcome, ${name}!`;
   welcomeMsg.style.cssText = `
     position: fixed;
@@ -18,34 +19,23 @@ function handleCredentialResponse(response) {
     z-index: 10000;
   `;
   document.body.appendChild(welcomeMsg);
-
-  // Transition to next page
-  document.getElementById('signin').style.display = 'none';
-  document.getElementById('cover').style.opacity = 1;
 }
 
-// Decode Google JWT
 function parseJwt(token) {
   const base64Url = token.split('.')[1];
   const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+  const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
   }).join(''));
   return JSON.parse(jsonPayload);
 }
 
-// COVER PAGE logic
-const cover = document.getElementById('cover');
-const coverImage = document.getElementById('coverImage');
-const home = document.getElementById('home');
-const glow = document.getElementById('glow');
-let started = false;
-
-cover.addEventListener('click', (e) => {
-  if (started) return;
-  started = true;
-
-  createSparkles(e.clientX, e.clientY);
+// COVER → HOME TRANSITION
+function triggerCoverTransition() {
+  const cover = document.getElementById('cover');
+  const coverImage = document.getElementById('coverImage');
+  const home = document.getElementById('home');
+  const glow = document.getElementById('glow');
 
   coverImage.classList.add('zoomed');
   setTimeout(() => glow.classList.add('active'), 1000);
@@ -55,9 +45,13 @@ cover.addEventListener('click', (e) => {
     home.style.opacity = 1;
   }, 3000);
   setTimeout(() => cover.style.display = 'none', 4000);
+}
+
+// SPARKLES
+document.getElementById("cover").addEventListener("click", (e) => {
+  createSparkles(e.clientX, e.clientY);
 });
 
-// Sparkle generator
 function createSparkles(x, y) {
   for (let i = 0; i < 20; i++) {
     const sparkle = document.createElement('div');
@@ -77,7 +71,7 @@ function createSparkles(x, y) {
   }
 }
 
-// Menu toggle
+// MENU
 document.addEventListener("DOMContentLoaded", () => {
   const menuBtn = document.getElementById('menuBtn');
   const menuOptions = document.getElementById('menuOptions');
