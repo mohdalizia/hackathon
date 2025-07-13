@@ -9,6 +9,7 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore-compat.js"></script>
   
   <!-- Socket.IO Client -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
@@ -158,6 +159,24 @@
     .message {
       margin-bottom: 10px;
       padding: 5px 0;
+    }
+
+    .message-time {
+      color: #888;
+      font-size: 0.8em;
+      margin-right: 5px;
+    }
+
+    #membersList {
+      list-style: none;
+      padding: 0;
+    }
+
+    #membersList li {
+      padding: 5px;
+      margin-bottom: 5px;
+      background: #444;
+      border-radius: 3px;
     }
 
     .modal {

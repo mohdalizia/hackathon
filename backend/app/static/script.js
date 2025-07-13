@@ -13,6 +13,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const db = firebase.firestore(); // Add Firestore
 
 // ==========================
 // ✅ SOCKET.IO CONNECTION
@@ -20,6 +21,7 @@ const auth = firebase.auth();
 let socket = null;
 let currentUser = null;
 let currentRoomId = null;
+let roomListener = null; // For Firestore real-time listener
 
 function initSocket() {
   socket = io(); // Connect to same origin (Flask server)
@@ -66,6 +68,58 @@ async function signInWithGoogle() {
   } catch (error) {
     console.error("Sign in failed:", error.message);
   }
+}
+
+// ==========================
+// ✅ FIRESTORE REAL-TIME UPDATES
+// ==========================
+function startRoomListener(roomId) {
+  // Stop previous listener if exists
+  if (roomListener) {
+    roomListener();
+    roomListener = null;
+  }
+  
+  // Listen to real-time updates for room members
+  roomListener = db.collection('rooms').doc(roomId).onSnapshot((doc) => {
+    if (doc.exists) {
+      const roomData = doc.data();
+      const members = roomData.members || [];
+      updateMembersList(members);
+      
+      console.log('📡 Real-time update - Room members:', members);
+    } else {
+      console.log('Room no longer exists');
+      // Room was deleted, redirect to home
+      leaveRoom();
+    }
+  }, (error) => {
+    console.error('Error listening to room updates:', error);
+  });
+}
+
+function stopRoomListener() {
+  if (roomListener) {
+    roomListener();
+    roomListener = null;
+  }
+}
+
+function updateMembersList(members) {
+  const membersList = document.getElementById('membersList');
+  if (!membersList) return;
+  
+  membersList.innerHTML = '';
+  members.forEach(member => {
+    const li = document.createElement('li');
+    li.textContent = member;
+    if (member === currentUser?.displayName) {
+      li.style.fontWeight = 'bold';
+      li.style.color = '#007bff';
+      li.textContent += ' (You)';
+    }
+    membersList.appendChild(li);
+  });
 }
 
 // ==========================
@@ -177,6 +231,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ✅ LOGOUT
 // ==========================
 async function logout() {
+  stopRoomListener(); // Stop Firestore listener
   await auth.signOut();
   // Also logout from Flask backend
   await fetch('/logout');
@@ -225,8 +280,11 @@ async function createRoom() {
       
       currentRoomId = roomId;
       joinSocketRoom(roomId);
+      startRoomListener(roomId); // Start Firestore listener
       showRoomPage(roomId);
       closeRoomModal();
+      
+      console.log(`✅ Created and joined room: ${roomId}`);
     }
   } catch (error) {
     console.error('Error creating room:', error);
@@ -264,8 +322,11 @@ async function joinRoom() {
         
         currentRoomId = roomId;
         joinSocketRoom(roomId);
+        startRoomListener(roomId); // Start Firestore listener
         showRoomPage(roomId);
         closeRoomModal();
+        
+        console.log(`✅ Joined room: ${roomId}`);
       }
     } else {
       const text = await response.text();
@@ -289,10 +350,24 @@ function joinSocketRoom(roomId) {
 async function leaveRoom() {
   if (currentRoomId) {
     try {
+      stopRoomListener(); // Stop Firestore listener
+      
+      // Leave via socket
+      if (socket && currentUser) {
+        socket.emit('leave', {
+          username: currentUser.displayName,
+          room: currentRoomId
+        });
+      }
+      
+      // Leave via HTTP
       await fetch(`/leave/${currentRoomId}`);
+      
       currentRoomId = null;
       document.getElementById('home').style.display = 'flex';
       document.getElementById('roomPage').style.display = 'none';
+      
+      console.log('✅ Left room successfully');
     } catch (error) {
       console.error('Error leaving room:', error);
     }
@@ -303,6 +378,12 @@ function showRoomPage(roomId) {
   document.getElementById('home').style.display = 'none';
   document.getElementById('roomPage').style.display = 'block';
   document.getElementById('roomIdDisplay').textContent = roomId;
+  
+  // Clear previous messages
+  const chatMessages = document.getElementById('chatMessages');
+  if (chatMessages) {
+    chatMessages.innerHTML = '';
+  }
 }
 
 function sendMessage() {
@@ -325,7 +406,16 @@ function displayMessage(username, message) {
   
   const messageElement = document.createElement('div');
   messageElement.className = 'message';
-  messageElement.innerHTML = `<strong>${username}:</strong> ${message}`;
+  
+  // Add timestamp
+  const now = new Date();
+  const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  
+  messageElement.innerHTML = `
+    <span class="message-time">[${timeString}]</span>
+    <strong>${username}:</strong> ${message}
+  `;
+  
   chatMessages.appendChild(messageElement);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
