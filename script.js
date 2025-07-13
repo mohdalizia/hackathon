@@ -95,20 +95,29 @@ menuBtn?.addEventListener('click', () => {
 // ==========================
 // ✅ MAP ZOOM CONTROLS
 // ==========================
-window.addEventListener('DOMContentLoaded', () => {
-  const mapImage = document.querySelector('.map-image');
-  let currentScale = 1;
+const mapImage = document.querySelector('.map-image');
+let currentScale = 1;
+const MIN_SCALE = 0.3;
+const MAX_SCALE = 2;
 
+function applyMapScale() {
+  mapImage.style.transform = `scale(${currentScale})`;
+  mapImage.style.transformOrigin = 'top left';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('zoomIn')?.addEventListener('click', () => {
-    currentScale += 0.1;
-    mapImage.style.transform = `scale(${currentScale})`;
-    mapImage.style.transformOrigin = 'top left';
+    if (currentScale < MAX_SCALE) {
+      currentScale = Math.min(currentScale + 0.1, MAX_SCALE);
+      applyMapScale();
+    }
   });
 
   document.getElementById('zoomOut')?.addEventListener('click', () => {
-    currentScale = Math.max(0.2, currentScale - 0.1);
-    mapImage.style.transform = `scale(${currentScale})`;
-    mapImage.style.transformOrigin = 'top left';
+    if (currentScale > MIN_SCALE) {
+      currentScale = Math.max(currentScale - 0.1, MIN_SCALE);
+      applyMapScale();
+    }
   });
 });
 

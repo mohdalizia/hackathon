@@ -246,7 +246,7 @@ body.loaded .home-page {
   font-weight: bold;
   border: none;
   border-radius: 8px;
-  cursor: pointer;
+  cursor: inherit;
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
   transition: transform 0.2s;
 }
@@ -314,7 +314,7 @@ body.loaded .home-page {
   background-color: maroon;
   color: white;
   border-radius: 5px;
-  cursor: pointer;
+  cursor: inherit;
 }
 .modal-actions button:hover {
   background-color: darkred;
