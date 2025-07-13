@@ -76,9 +76,9 @@ function createSparkles(x, y) {
     const dy = Math.sin(angle) * distance;
     
     // Position sparkle at click location
-    sparkle.style.left = ${x}px;
-    sparkle.style.top = ${y}px;
-    sparkle.style.setProperty('--scatter-transform', translate(${dx}px, ${dy}px));
+    sparkle.style.left = `${x}px`;
+    sparkle.style.top = `${y}px`;
+    sparkle.style.setProperty('--scatter-transform', `translate(${dx}px, ${dy}px)`);
     
     document.body.appendChild(sparkle);
     
@@ -116,13 +116,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   zoomInBtn?.addEventListener('click', () => {
     currentScale += 0.1;
-    mapImage.style.transform = scale(${currentScale});
+    mapImage.style.transform = `scale(${currentScale})`;
     mapImage.style.transformOrigin = 'top left';
   });
 
   zoomOutBtn?.addEventListener('click', () => {
     currentScale = Math.max(0.2, currentScale - 0.1);
-    mapImage.style.transform = scale(${currentScale});
+    mapImage.style.transform = `scale(${currentScale})`;
     mapImage.style.transformOrigin = 'top left';
   });
 });
