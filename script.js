@@ -19,27 +19,75 @@ function signInWithGoogle() {
     .then(result => {
       const user = result.user;
       console.log("Signed in:", user.displayName);
-
-      // Show interactive page
+      // Show cover page after sign-in
       document.getElementById('signIn').style.display = 'none';
-      document.getElementById('interactive').style.display = 'flex';
+      document.getElementById('cover').style.display = 'flex';
     })
     .catch(error => {
       console.error("Sign in failed:", error.message);
     });
 }
 
-// Cover transition to home page
+// Cover page transition to home page
+const cover = document.getElementById('cover');
 const coverImage = document.getElementById('coverImage');
+const home = document.getElementById('home');
 const glow = document.getElementById('glow');
+let started = false;
 
-coverImage?.addEventListener('click', () => {
-  glow.classList.add('sparkle');
+cover?.addEventListener('click', (e) => {
+  if (started) return;
+  started = true;
+  
+  // Create sparkles at click position
+  createSparkles(e.clientX, e.clientY);
+  
+  // Add zoom effect to cover image
+  coverImage.classList.add('zoomed');
+  
+  // Activate glow after 1 second
   setTimeout(() => {
-    document.getElementById('interactive').style.display = 'none';
-    document.getElementById('home').style.display = 'flex';
-  }, 2000);
+    glow.classList.add('active');
+  }, 1000);
+  
+  // Transition to home page after 3 seconds
+  setTimeout(() => {
+    cover.style.opacity = 0;
+    home.style.display = 'flex';
+    home.style.opacity = 1;
+  }, 3000);
+  
+  // Hide cover page after 4 seconds
+  setTimeout(() => {
+    cover.style.display = 'none';
+  }, 4000);
 });
+
+// Sparkle particle generator
+function createSparkles(x, y) {
+  for (let i = 0; i < 20; i++) {
+    const sparkle = document.createElement('div');
+    sparkle.className = 'sparkle';
+    
+    // Random scatter direction
+    const angle = Math.random() * 2 * Math.PI;
+    const distance = Math.random() * 60 + 20;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+    
+    // Position sparkle at click location
+    sparkle.style.left = ${x}px;
+    sparkle.style.top = ${y}px;
+    sparkle.style.setProperty('--scatter-transform', translate(${dx}px, ${dy}px));
+    
+    document.body.appendChild(sparkle);
+    
+    // Remove sparkle after animation
+    setTimeout(() => {
+      sparkle.remove();
+    }, 800);
+  }
+}
 
 // Menu toggle
 const menuBtn = document.getElementById('menuBtn');
@@ -47,8 +95,36 @@ const menuOptions = document.getElementById('menuOptions');
 
 menuBtn?.addEventListener('click', () => {
   const isOpen = menuOptions.style.display === 'flex';
-  menuOptions.style.display = isOpen ? 'none' : 'flex';
-  menuBtn.textContent = isOpen ? '≡' : '✕';
+  if (isOpen) {
+    menuOptions.style.display = 'none';
+    menuBtn.textContent = '≡';
+  } else {
+    menuOptions.style.display = 'flex';
+    menuBtn.textContent = '✕';
+  }
+});
+
+// Zoom Controls
+window.addEventListener('DOMContentLoaded', () => {
+  const homePage = document.getElementById('home');
+  const mapImage = document.querySelector('.map-image');
+  let currentScale = 1;
+
+  // Get existing zoom controls from HTML
+  const zoomInBtn = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
+
+  zoomInBtn?.addEventListener('click', () => {
+    currentScale += 0.1;
+    mapImage.style.transform = scale(${currentScale});
+    mapImage.style.transformOrigin = 'top left';
+  });
+
+  zoomOutBtn?.addEventListener('click', () => {
+    currentScale = Math.max(0.2, currentScale - 0.1);
+    mapImage.style.transform = scale(${currentScale});
+    mapImage.style.transformOrigin = 'top left';
+  });
 });
 
 // Logout
