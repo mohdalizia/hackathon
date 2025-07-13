@@ -248,3 +248,16 @@ body.loaded .home-page {
 .zoom-controls button:hover {
   transform: scale(1.1);
 }
+
+/* ====== USER LOCATION MARKER ====== */
+.user-location {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  background-color: rgba(0, 255, 0, 0.8);
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 10px 3px rgba(0, 255, 0, 0.6);
+  transition: top 0.5s ease, left 0.5s ease;
+  z-index: 2000;
+}

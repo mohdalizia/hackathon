@@ -38,26 +38,23 @@ let started = false;
 cover?.addEventListener('click', (e) => {
   if (started) return;
   started = true;
-  
-  // Create sparkles at click position
+
   createSparkles(e.clientX, e.clientY);
-  
-  // Add zoom effect to cover image
   coverImage.classList.add('zoomed');
-  
-  // Activate glow after 1 second
+
   setTimeout(() => {
     glow.classList.add('active');
   }, 1000);
-  
-  // Transition to home page after 3 seconds
+
   setTimeout(() => {
     cover.style.opacity = 0;
     home.style.display = 'flex';
     home.style.opacity = 1;
+
+    // Start tracking location once home page shows
+    initLocationTracking();
   }, 3000);
-  
-  // Hide cover page after 4 seconds
+
   setTimeout(() => {
     cover.style.display = 'none';
   }, 4000);
@@ -68,21 +65,18 @@ function createSparkles(x, y) {
   for (let i = 0; i < 20; i++) {
     const sparkle = document.createElement('div');
     sparkle.className = 'sparkle';
-    
-    // Random scatter direction
+
     const angle = Math.random() * 2 * Math.PI;
     const distance = Math.random() * 60 + 20;
     const dx = Math.cos(angle) * distance;
     const dy = Math.sin(angle) * distance;
-    
-    // Position sparkle at click location
+
     sparkle.style.left = `${x}px`;
     sparkle.style.top = `${y}px`;
     sparkle.style.setProperty('--scatter-transform', `translate(${dx}px, ${dy}px)`);
-    
+
     document.body.appendChild(sparkle);
-    
-    // Remove sparkle after animation
+
     setTimeout(() => {
       sparkle.remove();
     }, 800);
@@ -95,22 +89,15 @@ const menuOptions = document.getElementById('menuOptions');
 
 menuBtn?.addEventListener('click', () => {
   const isOpen = menuOptions.style.display === 'flex';
-  if (isOpen) {
-    menuOptions.style.display = 'none';
-    menuBtn.textContent = '≡';
-  } else {
-    menuOptions.style.display = 'flex';
-    menuBtn.textContent = '✕';
-  }
+  menuOptions.style.display = isOpen ? 'none' : 'flex';
+  menuBtn.textContent = isOpen ? '≡' : '✕';
 });
 
 // Zoom Controls
 window.addEventListener('DOMContentLoaded', () => {
-  const homePage = document.getElementById('home');
   const mapImage = document.querySelector('.map-image');
   let currentScale = 1;
 
-  // Get existing zoom controls from HTML
   const zoomInBtn = document.getElementById('zoomIn');
   const zoomOutBtn = document.getElementById('zoomOut');
 
@@ -132,4 +119,42 @@ function logout() {
   auth.signOut().then(() => {
     location.reload();
   });
+}
+
+// ==========================
+// ✅ REAL-TIME LOCATION TRACKING
+// ==========================
+function initLocationTracking() {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+
+  const homePage = document.getElementById('home');
+  let marker = document.createElement('div');
+  marker.className = 'user-location';
+  homePage.appendChild(marker);
+
+  navigator.geolocation.watchPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      console.log("User Location:", latitude, longitude);
+
+      // Mock positioning within the map image
+      // This will be mapped to pixels manually (you can refine it later)
+      const x = (longitude % 1) * 1000 + 200;
+      const y = (latitude % 1) * 1000 + 200;
+
+      marker.style.left = `${x}px`;
+      marker.style.top = `${y}px`;
+    },
+    (error) => {
+      console.error("Error getting location:", error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
 }
