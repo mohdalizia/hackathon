@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Marauder's Map</title>
   <link rel="stylesheet" href="style.css" />
-  
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <!-- SIGN-IN PAGE -->
@@ -16,35 +17,47 @@
     <img src="Images/Untitled-1.png" class="signin-bg" alt="Sign In Background" />
     <button onclick="signInWithGoogle()" class="custom-signin-button">Sign in with Google</button>
   </div>
-  
+
   <!-- COVER PAGE -->
   <div class="cover-page" id="cover">
     <img src="Images/cover.png" class="bg" id="coverImage" alt="Marauder Map" />
     <div class="glow" id="glow"></div>
   </div>
-  
+
   <!-- HOME PAGE -->
   <div class="home-page" id="home">
-    <img src="Images/home-page.png" alt="Map" class="map-image" />
+    <img src="Images/home-page.png" alt="Map" class="map-image" id="mapImage" />
     <h1>JIIT College Map</h1>
     <div class="menu-container">
       <button id="menuBtn">≡</button>
       <div class="menu-options" id="menuOptions">
-        <button>Your Profile</button>
-        <button>View Room</button>
-        <button>Join Room</button>
+        <button id="createRoomBtn">View Room</button>
+        <button id="joinRoomBtn">Join Room</button>
         <button>Settings</button>
         <button onclick="logout()">Logout</button>
       </div>
     </div>
-    
+
     <!-- Zoom Controls -->
     <div class="zoom-controls">
       <button id="zoomIn">+</button>
       <button id="zoomOut">−</button>
     </div>
   </div>
-  
+  <!-- ROOM MODAL -->
+<div id="roomModal" class="modal">
+  <div class="modal-content">
+    <h2>Join or Create Room</h2>
+    <input type="text" id="roomInput" placeholder="Enter Room Code" />
+    <div class="modal-actions">
+      <button onclick="createRoom()">Create Room</button>
+      <button onclick="requestToJoinRoom()">Request to Join</button>
+      <button onclick="closeRoomModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
   <script src="script.js"></script>
+  
 </body>
 </html>
