@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Marauder's Map Lobby</title>
+</head>
+<body>
+  {% if username %}
+    <h2>Welcome, {{ username }}!</h2>
+    <button onclick="location.href='/create_room'">Create Room</button>
+    <form method="POST" action="/join_room">
+      <input type="text" name="room_code" placeholder="Enter room code" required>
+      <button type="submit">Join Room</button>
+    </form>
+  {% else %}
+    <form method="POST">
+      <input type="text" name="username" placeholder="Enter your name" required>
+      <button type="submit">Continue</button>
+    </form>
+  {% endif %}
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Room {{ room_id }}</title>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+</head>
+<body>
+  <h2>Room ID: {{ room_id }}</h2>
+  <p><b>Members:</b> {{ ', '.join(members) }}</p>
+
+  <div id="chatbox" style="border:1px solid #ccc; height:300px; overflow-y:scroll; padding:10px;"></div>
+  <input id="msgInput" type="text" placeholder="Type message..." autocomplete="off">
+  <button onclick="sendMsg()">Send</button>
+  <br><br>
+  <a href="/leave/{{ room_id }}">Leave Room</a>
+
+  <script>
+    const socket = io();
+    const username = "{{ username }}";
+    const room_id = "{{ room_id }}";
+
+    socket.on('connect', () => {
+      socket.emit('join', {username: username, room: room_id});
+    });
+
+    socket.on('message', data => {
+      const box = document.getElementById("chatbox");
+      box.innerHTML += `<p><b>${data.username}:</b> ${data.message}</p>`;
+      box.scrollTop = box.scrollHeight;
+    });
+
+    function sendMsg() {
+      const msg = document.getElementById("msgInput").value;
+      socket.emit('send_message', {
+        username: username,
+        room: room_id,
+        message: msg
+      });
+      document.getElementById("msgInput").value = "";
+    }
+  </script>
+</body>
+</html>
