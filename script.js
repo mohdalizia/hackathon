@@ -250,3 +250,66 @@ async function requestToJoinRoom() {
   currentRoomId = joinCode;
   closeRoomModal();
 }
+
+function initLocationTracking() {
+  console.log("📡 initLocationTracking() called");
+
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+
+  const mapImage = document.getElementById("mapImage");
+  const marker = document.createElement("div");
+  marker.className = "user-location";
+  mapImage.parentElement.appendChild(marker);
+
+  // 🌏 India bounding box (approx.)
+  const latTop = 37.6;
+  const latBottom = 6.5;
+  const lonLeft = 68.1;
+  const lonRight = 97.4;
+
+  // 🗺 Map dimensions (must match actual image size in px)
+  const mapWidth = 6202.6;
+  const mapHeight = 2481.04;
+
+  navigator.geolocation.watchPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+
+      if (
+        latitude > latTop || latitude < latBottom ||
+        longitude < lonLeft || longitude > lonRight
+      ) {
+        marker.style.display = "none";
+        console.warn("🚫 Out of bounds.");
+        return;
+      }
+
+      marker.style.display = "block";
+
+      const xRatio = (longitude - lonLeft) / (lonRight - lonLeft);
+      const yRatio = (latTop - latitude) / (latTop - latBottom);
+
+      const x = xRatio * mapWidth;
+      const y = yRatio * mapHeight;
+
+      marker.style.left = `${x}px`;
+      marker.style.top = `${y}px`;
+
+      console.log("Latitude:", latitude);
+      console.log("Longitude:", longitude);
+      console.log("Mapped X:", x);
+      console.log("Mapped Y:", y);
+    },
+    (error) => {
+      console.error("⚠️ Location error:", error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
+}
