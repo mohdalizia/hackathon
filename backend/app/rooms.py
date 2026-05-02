@@ -237,3 +237,26 @@ def get_all_rooms():
     except Exception as e:
         print(f"❌ Error getting all rooms: {e}")
         return []
+
+def get_user_rooms(username):
+    """Get all rooms a user is a member of"""
+    db = init_firebase()
+    if not db:
+        return []
+        
+    try:
+        rooms_ref = db.collection('rooms')
+        # Query for rooms where the user is in the members array
+        query = rooms_ref.where('members', 'array_contains', username)
+        docs = query.stream()
+        
+        user_rooms = []
+        for doc in docs:
+            user_rooms.append(doc.id)
+            
+        print(f"ℹ️ User {username} is in rooms: {user_rooms}")
+        return user_rooms
+        
+    except Exception as e:
+        print(f"❌ Error getting user rooms: {e}")
+        return []

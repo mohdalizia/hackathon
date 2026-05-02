@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import emit, join_room as socketio_join, leave_room as socketio_leave
-from .rooms import create_room, join_room_by_code, leave_room, get_room_members
+from .rooms import create_room, join_room_by_code, leave_room, get_room_members, get_user_rooms
 from . import socketio
 
 main = Blueprint('main', __name__)
@@ -76,6 +76,16 @@ def get_room_members_api(room_id):
     
     members = get_room_members(room_id)
     return jsonify({'members': members})
+
+@main.route('/api/user/rooms')
+def get_user_rooms_api():
+    """API endpoint to get all rooms for the current user"""
+    username = session.get('username')
+    if not username:
+        return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
+        
+    rooms = get_user_rooms(username)
+    return jsonify({'status': 'success', 'rooms': rooms})
 
 # Socket Events
 @socketio.on('join')
