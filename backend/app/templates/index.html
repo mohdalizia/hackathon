@@ -13,6 +13,13 @@
   
   <!-- Socket.IO Client -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+  
+  <!-- API Keys -->
+  <script>
+    const FIREBASE_API_KEY = "{{ config.FIREBASE_API_KEY }}";
+  </script>
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}"></script>
 </head>
 <body>
   <!-- SIGN-IN PAGE -->
@@ -27,24 +34,26 @@
     <div class="glow" id="glow"></div>
   </div>
 
-  <!-- HOME PAGE -->
   <div class="home-page" id="home">
-    <img src="{{ url_for('static', filename='Images/home-page.png') }}" alt="Map" class="map-image" id="mapImage" />
-    <h1>JIIT College Map</h1>
+    
+    <div id="mapImage" class="map-image"></div>
+    
+    <h2 style="margin-top: 5px; color: #aaa; font-weight: normal; font-size: 18px; z-index: 100; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px;">Hello, <span id="userNameDisplay">...</span>!</h2>
+    
     <div class="menu-container">
       <button id="menuBtn">≡</button>
       <div class="menu-options" id="menuOptions">
         <button id="createRoomBtn">Create Room</button>
         <button id="joinRoomBtn">Join Room</button>
-        <button>Settings</button>
+        <div class="dropdown-container">
+          <button id="viewRoomsBtn" onclick="toggleRoomsDropdown()">View All Rooms ▼</button>
+          <div id="roomsDropdown" class="dropdown-content">
+            <div style="padding: 10px; color: #aaa; font-size: 14px;">Loading...</div>
+          </div>
+        </div>
+        <button onclick="openSettingsModal()">Settings</button>
         <button onclick="logout()">Logout</button>
       </div>
-    </div>
-
-    <!-- Zoom Controls -->
-    <div class="zoom-controls">
-      <button id="zoomIn">+</button>
-      <button id="zoomOut">−</button>
     </div>
   </div>
 
@@ -61,24 +70,50 @@
     </div>
   </div>
 
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content" style="text-align: left;">
+      <h2 style="margin-top:0;">⚙️ Settings</h2>
+      
+      <div class="settings-option" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 20px;">
+        <span><strong style="color: #333;">Share Location</strong><br><small style="color:#666;">Broadcast location to active room</small></span>
+        <label class="privacy-toggle">
+          <input type="checkbox" id="privacyToggleSettings" onchange="togglePrivacy(this)" checked>
+          <span class="slider round"></span>
+        </label>
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 30px;">
+        <button onclick="closeSettingsModal()" style="background: #6c757d; width: 100%;">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ROOM PAGE -->
   <div class="room-page" id="roomPage" style="display: none;">
     <div class="room-header">
-      <h2>Room: <span id="roomIdDisplay"></span></h2>
-      <button onclick="leaveRoom()">Leave Room</button>
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <button onclick="goToDashboard()" style="background: #444; color: white;">⬅ Dashboard</button>
+        <h2>🧭 Room: <span id="roomIdDisplay"></span></h2>
+      </div>
+      <button onclick="leaveRoom()" style="background: #d9534f; color: white;">Leave Room Permanently</button>
     </div>
     
     <div class="room-content">
-      <div class="members-panel">
-        <h3>Members</h3>
-        <ul id="membersList"></ul>
-      </div>
+      <div id="roomPageMap" class="room-page-map"></div>
       
-      <div class="chat-panel">
-        <div id="chatMessages" class="chat-messages"></div>
-        <div class="chat-input">
-          <input type="text" id="messageInput" placeholder="Type a message..." />
-          <button onclick="sendMessage()">Send</button>
+      <div class="side-panels">
+        <div class="members-panel">
+          <h3>👥 Members</h3>
+          <ul id="membersList"></ul>
+        </div>
+        
+        <div class="chat-panel">
+          <div id="chatMessages" class="chat-messages"></div>
+          <div class="chat-input">
+            <input type="text" id="messageInput" placeholder="Type a message..." />
+            <button onclick="sendMessage()">Send</button>
+          </div>
         </div>
       </div>
     </div>
@@ -105,60 +140,157 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      height: 60px;
+      box-sizing: border-box;
+    }
+
+    .room-header button {
+      padding: 8px 16px;
+      background: #d9534f;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .room-header button:hover {
+      background: #c9302c;
     }
 
     .room-content {
       display: flex;
-      height: calc(100% - 80px);
+      height: calc(100% - 60px);
+      gap: 0;
+      width: 100%;
+    }
+
+    .room-map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #222;
+      width: 100%;
+    }
+
+    .room-page-map {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-image: url("{{ url_for('static', filename='Images/Final-2.png') }}");
+    }
+
+    .member-location {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background: #007bff;
+      border: 3px solid #0056b3;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+      transition: all 0.3s ease;
+    }
+
+    .member-location.own-marker {
+      background: #ef0707;
+      border-color: #e6ee0e;
+      box-shadow: 0 0 15px rgba(236, 77, 14, 0.7);
+      width: 15px;
+      height: 15px;
+    }
+
+    .marker-label {
+      position: absolute;
+      bottom: -25px;
+      white-space: nowrap;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .side-panels {
+      display: none;
+      width: 300px;
+      flex-direction: column;
+      background: #333;
+      border-left: 1px solid #555;
+      overflow: hidden;
     }
 
     .members-panel {
-      width: 250px;
-      background: #333;
-      padding: 20px;
-      border-right: 1px solid #555;
+      padding: 15px;
+      border-bottom: 1px solid #555;
+      max-height: 40%;
+      overflow-y: auto;
+    }
+
+    .members-panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #aaa;
     }
 
     .chat-panel {
       flex: 1;
       display: flex;
       flex-direction: column;
+      padding: 0;
     }
 
     .chat-messages {
       flex: 1;
-      padding: 20px;
+      padding: 15px;
       overflow-y: auto;
+      border-bottom: 1px solid #555;
     }
 
     .chat-input {
-      padding: 20px;
+      padding: 15px;
       background: #2a2a2a;
       display: flex;
-      gap: 10px;
+      gap: 8px;
     }
 
     .chat-input input {
       flex: 1;
-      padding: 10px;
+      padding: 8px 12px;
       border: none;
-      border-radius: 5px;
+      border-radius: 4px;
       background: #444;
       color: white;
+      font-size: 14px;
     }
 
     .chat-input button {
-      padding: 10px 20px;
+      padding: 8px 16px;
       background: #007bff;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 4px;
       cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .chat-input button:hover {
+      background: #0056b3;
     }
 
     .message {
       margin-bottom: 10px;
-      padding: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #007bff;
+      padding-left: 10px;
     }
 
     .message-time {
@@ -170,13 +302,20 @@
     #membersList {
       list-style: none;
       padding: 0;
+      margin: 0;
     }
 
     #membersList li {
-      padding: 5px;
+      padding: 8px;
       margin-bottom: 5px;
       background: #444;
       border-radius: 3px;
+      font-size: 13px;
+    }
+
+    #membersList li.own-member {
+      background: #28a745;
+      font-weight: bold;
     }
 
     .modal {
@@ -198,6 +337,12 @@
       border-radius: 10px;
       text-align: center;
       min-width: 300px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .modal-content h2 {
+      margin-top: 0;
+      color: #333;
     }
 
     .modal-actions {
@@ -212,6 +357,21 @@
       border: none;
       border-radius: 5px;
       cursor: pointer;
+      background: #007bff;
+      color: white;
+      transition: background 0.3s ease;
+    }
+
+    .modal-actions button:hover {
+      background: #0056b3;
+    }
+
+    .modal-actions button:last-child {
+      background: #6c757d;
+    }
+
+    .modal-actions button:last-child:hover {
+      background: #5a6268;
     }
 
     #roomInput {
@@ -220,7 +380,118 @@
       margin: 15px 0;
       border: 1px solid #ccc;
       border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+
+    /* Dropdown CSS */
+    .dropdown-container {
+      position: relative;
+      width: 100%;
+    }
+    .dropdown-content {
+      display: none;
+      flex-direction: column;
+      background-color: #2a2a2a;
+      width: 100%;
+      box-shadow: inset 0px 0px 5px rgba(0,0,0,0.5);
+      border-bottom: 1px solid #444;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .dropdown-content button {
+      background: transparent !important;
+      color: #ddd !important;
+      text-align: left;
+      padding: 12px 20px !important;
+      border-radius: 0 !important;
+      border-bottom: 1px solid #333 !important;
+    }
+    .dropdown-content button:hover {
+      background: #444 !important;
+      color: white !important;
+    }
+    .dropdown-content button:last-child {
+      border-bottom: none !important;
+    }
+
+    /* Privacy Toggle Switch CSS */
+    .privacy-toggle {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .privacy-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .privacy-toggle .slider {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 20px;
+    }
+    .privacy-toggle .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    .privacy-toggle input:checked + .slider {
+      background-color: #28a745;
+    }
+    .privacy-toggle input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    
+    /* Pulse Animation for own marker */
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(236, 77, 14, 0.7); }
+      70% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 0 10px rgba(236, 77, 14, 0); }
+      100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(236, 77, 14, 0); }
+    }
+    .member-location.own-marker {
+      animation: pulse 1.5s infinite;
+    }
+    
+    /* Loading Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+<script>
+    {% if room_id %}
+        // Flask passed a room_id, so we initialize the room view immediately
+        window.addEventListener('load', function() {
+            // Wait for script.js to load
+            if (typeof initRoomFromServer === 'function') {
+                initRoomFromServer("{{ room_id }}");
+            }
+        });
+    {% endif %}
+</script>
 </body>
 </html>

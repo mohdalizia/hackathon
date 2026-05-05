@@ -10,6 +10,22 @@ def index():
     """Main route - serves the index.html template"""
     return render_template('index.html')
 
+@main.route('/api/login', methods=['POST'])
+def api_login():
+    """Handle login from Firebase authenticated users"""
+    data = request.get_json() or {}
+    username = data.get('username')
+    if username:
+        session['username'] = username
+        return jsonify({'status': 'success', 'message': 'Logged in successfully'})
+    return jsonify({'status': 'error', 'message': 'Username required'}), 400
+
+@main.route('/api/logout', methods=['GET', 'POST'])
+def api_logout():
+    """Handle logout"""
+    session.pop('username', None)
+    return jsonify({'status': 'success', 'message': 'Logged out successfully'})
+
 @main.route('/login', methods=['POST'])
 def login():
     """Handle login from Firebase authenticated users"""
@@ -31,27 +47,77 @@ def lobby():
         return redirect(url_for('main.index'))
     return render_template('index.html', username=session['username'])
 
-@main.route('/create_room')
+@main.route('/api/create_room', methods=['POST', 'GET'])
+def api_create_room():
+    username = session.get('username')
+    if not username:
+        return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
+    
+    room_id = create_room(username)
+    if room_id:
+        return jsonify({'status': 'success', 'room_id': room_id, 'message': 'Room created successfully'})
+    else:
+        return jsonify({'status': 'error', 'message': 'Failed to create room'}), 500
+
+@main.route('/create_room', methods=['POST', 'GET'])
 def create():
     username = session.get('username')
     if not username:
         return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
     
     room_id = create_room(username)
-    return redirect(url_for('main.room', room_id=room_id))
+    if room_id:
+        return jsonify({'status': 'success', 'room_id': room_id, 'message': 'Room created successfully'})
+    else:
+        return jsonify({'status': 'error', 'message': 'Failed to create room'}), 500
 
-@main.route('/join_room', methods=['POST'])
-def join():
-    code = request.form['room_code']
+@main.route('/api/join_room', methods=['POST'])
+def api_join_room():
+    data = request.get_json() or request.form
+    code = data.get('room_code', '').strip()
     username = session.get('username')
     
     if not username:
         return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
     
+    if not code:
+        return jsonify({'status': 'error', 'message': 'Room code required'}), 400
+    
     success = join_room_by_code(code, username)
     if success:
-        return redirect(url_for('main.room', room_id=code))
+        return jsonify({'status': 'success', 'room_id': code, 'message': 'Successfully joined room'})
     return jsonify({'status': 'error', 'message': 'Invalid Room Code'}), 400
+
+@main.route('/join_room', methods=['POST'])
+def join():
+    data = request.get_json() or request.form
+    code = data.get('room_code', '').strip()
+    username = session.get('username')
+    
+    if not username:
+        return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
+    
+    if not code:
+        return jsonify({'status': 'error', 'message': 'Room code required'}), 400
+    
+    success = join_room_by_code(code, username)
+    if success:
+        return jsonify({'status': 'success', 'room_id': code, 'message': 'Successfully joined room'})
+    return jsonify({'status': 'error', 'message': 'Invalid Room Code'}), 400
+
+@main.route('/api/leave_room/<room_id>', methods=['GET', 'POST'])
+def api_leave_room(room_id):
+    username = session.get('username')
+    if username:
+        leave_room(room_id, username)
+    return jsonify({'status': 'success', 'message': 'Left room successfully'})
+
+@main.route('/leave/<room_id>', methods=['GET', 'POST'])
+def leave(room_id):
+    username = session.get('username')
+    if username:
+        leave_room(room_id, username)
+    return jsonify({'status': 'success', 'message': 'Left room successfully'})
 
 @main.route('/room/<room_id>')
 def room(room_id):
@@ -61,15 +127,8 @@ def room(room_id):
     members = get_room_members(room_id)
     return render_template('index.html', room_id=room_id, username=session['username'], members=members)
 
-@main.route('/leave/<room_id>')
-def leave(room_id):
-    username = session.get('username')
-    if username:
-        leave_room(room_id, username)
-    return jsonify({'status': 'success', 'message': 'Left room successfully'})
-
 @main.route('/api/room/<room_id>/members')
-def get_room_members_api(room_id):
+def api_get_room_members(room_id):
     """API endpoint to get room members"""
     if 'username' not in session:
         return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
@@ -78,7 +137,7 @@ def get_room_members_api(room_id):
     return jsonify({'members': members})
 
 @main.route('/api/user/rooms')
-def get_user_rooms_api():
+def api_get_user_rooms():
     """API endpoint to get all rooms for the current user"""
     username = session.get('username')
     if not username:
@@ -92,7 +151,9 @@ def get_user_rooms_api():
 def handle_join(data):
     username = data['username']
     room_id = data['room']
+    avatar = data.get('avatar', 'default')
     socketio_join(room_id)
+    emit('user_joined', {'username': username, 'avatar': avatar}, room=room_id)
     emit('message', {'username': '🧭 System', 'message': f'{username} joined the room'}, room=room_id)
 
 @socketio.on('send_message')
@@ -100,10 +161,40 @@ def handle_message(data):
     room_id = data['room']
     username = data['username']
     message = data['message']
+    avatar = data.get('avatar', 'default')
+    timestamp = data.get('timestamp', '')
     
     emit('message', {
         'username': username,
-        'message': message
+        'message': message,
+        'avatar': avatar,
+        'timestamp': timestamp
+    }, room=room_id)
+
+@socketio.on('location_update')
+def handle_location_update(data):
+    room_id = data.get('room')
+    username = data['username']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    avatar = data.get('avatar', 'default')
+    
+    emit('location_update', {
+        'username': username,
+        'latitude': latitude,
+        'longitude': longitude,
+        'avatar': avatar
+    }, room=room_id)
+
+@socketio.on('avatar_changed')
+def handle_avatar_changed(data):
+    room_id = data.get('room')
+    username = data['username']
+    avatar = data.get('avatar', 'default')
+    
+    emit('avatar_changed', {
+        'username': username,
+        'avatar': avatar
     }, room=room_id)
 
 @socketio.on('leave')

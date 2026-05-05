@@ -10,6 +10,13 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-auth-compat.js"></script>
   
+  <!-- API Keys -->
+  <script>
+    const FIREBASE_API_KEY = "{{ config.FIREBASE_API_KEY }}";
+  </script>
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}"></script>
+  
   <!-- Socket.IO Client -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
 </head>
@@ -29,13 +36,20 @@
   <!-- HOME PAGE -->
   <div class="home-page" id="home">
     <img src="{{ url_for('static', filename='Images/home-page.png') }}" alt="Map" class="map-image" id="mapImage" />
+    <div id="googleMap" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;"></div>
+    <div id="userGreeting" class="user-greeting"></div>
     <h1>JIIT College Map</h1>
+    
+    <!-- User Location Marker -->
+    <div id="userMarker" class="user-location-marker"></div>
+    
     <div class="menu-container">
       <button id="menuBtn">≡</button>
       <div class="menu-options" id="menuOptions">
         <button id="createRoomBtn">Create Room</button>
         <button id="joinRoomBtn">Join Room</button>
-        <button>Settings</button>
+        <button id="viewRoomsBtn">View All Rooms</button>
+        <button id="settingsBtn">Settings</button>
         <button onclick="logout()">Logout</button>
       </div>
     </div>
@@ -57,6 +71,41 @@
         <button id="joinBtn" onclick="joinRoom()">Join Room</button>
         <button onclick="closeRoomModal()">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- VIEW ROOMS MODAL -->
+  <div id="viewRoomsModal" class="modal">
+    <div class="modal-content">
+      <h2>Your Rooms</h2>
+      <div id="roomsList" class="rooms-list"></div>
+      <button onclick="closeViewRoomsModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <h2>Settings</h2>
+      <div class="settings-options">
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="sharingLocation" checked onchange="toggleLocationSharing()"> 
+            Share My Location
+          </label>
+        </div>
+        <div class="setting-item">
+          <label>Choose Avatar:</label>
+          <select id="avatarSelect" onchange="updateAvatar()">
+            <option value="default">👤 Default</option>
+            <option value="hero">🧙 Wizard</option>
+            <option value="ninja">🥷 Ninja</option>
+            <option value="knight">⚔️ Knight</option>
+            <option value="astronaut">🧑‍🚀 Astronaut</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="closeSettingsModal()">Close</button>
     </div>
   </div>
 

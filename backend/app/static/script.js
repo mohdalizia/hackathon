@@ -1,19 +1,26 @@
 // ==========================
-// ✅ INITIALIZE FIREBASE
+// 🚨 DEMO CONFIGURATION
+// ==========================
+const TEST_MODE = true; // SET TO FALSE FOR ACTUAL CAMPUS DEMO
+
+// ==========================
+// ✅ INITIALIZE FIREBASE (UNCHANGED)
 // ==========================
 const firebaseConfig = {
-  apiKey: "AIzaSyC-wnANGp8OGB1BFA9xYlBb2vtiGTuf1co",
-  authDomain: "hackatgo-465620.firebaseapp.com",
-  projectId: "hackatgo-465620",
-  storageBucket: "hackatgo-465620.appspot.com",
-  messagingSenderId: "678440281179",
-  appId: "1:678440281179:web:8dfb8c978be67c173d8b7e",
-  measurementId: "G-CJ67JRE3JF"
+  apiKey: typeof FIREBASE_API_KEY !== 'undefined' ? FIREBASE_API_KEY : "",
+  authDomain: "my-map-project-deffb.firebaseapp.com",
+  projectId: "my-map-project-deffb",
+  storageBucket: "my-map-project-deffb.firebasestorage.app",
+  messagingSenderId: "225623703410",
+  appId: "1:225623703410:web:dd234f03917e6155b427eb",
+  measurementId: "G-LNVYY4PLKS"
 };
 
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 const auth = firebase.auth();
-const db = firebase.firestore(); // Add Firestore
+const db = firebase.firestore();
 
 // ==========================
 // ✅ SOCKET.IO CONNECTION
@@ -21,80 +28,586 @@ const db = firebase.firestore(); // Add Firestore
 let socket = null;
 let currentUser = null;
 let currentRoomId = null;
-let roomListener = null; // For Firestore real-time listener
+let roomListener = null;
+let locationSharingEnabled = true;
+let locationWatchId = null;
 
 function initSocket() {
-  socket = io(); // Connect to same origin (Flask server)
+  if (socket) return; 
+  socket = io(); 
   
   socket.on('message', (data) => {
-    displayMessage(data.username, data.message);
+    console.log('Message received:', data);
+    displayMessage(data.username, data.message, data.timestamp);
+  });
+  
+  socket.on('location_update', (data) => {
+    console.log('Location update:', data);
+    updateRoomMembersLocations(data);
   });
   
   socket.on('connect', () => {
-    console.log('Connected to server');
+    console.log('✅ Connected to server');
+    if (currentRoomId && currentUser) {
+        joinSocketRoom(currentRoomId);
+    }
   });
   
   socket.on('disconnect', () => {
-    console.log('Disconnected from server');
+    console.log('❌ Disconnected from server');
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
   });
 }
 
 // ==========================
-// ✅ GOOGLE SIGN-IN
+// ✅ AUTHENTICATION - OAUTH WITH POPUP
 // ==========================
+// Uses signInWithPopup() instead of signInWithRedirect()
+// This prevents redirect URI configuration issues
+// ⚠️  IMPORTANT: Add these domains to Firebase Console:
+//     1. Go to Authentication → Settings → Authorized domains
+//     2. Add: localhost:5000 (development)
+//     3. Add: your-production-domain.com (when deployed)
+
 async function signInWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
+  
+  // Set custom parameters for Google OAuth (optional: restrict to specific domains)
+  provider.setCustomParameters({
+    'hd': 'jiit.ac.in' // Restrict to specific Google Workspace domain if needed
+  });
+  
   try {
+    console.log("🔐 Initiating Google Sign-In with popup...");
     const result = await auth.signInWithPopup(provider);
-    const user = result.user;
-    console.log("Signed in:", user.displayName);
+    console.log("✅ User signed in successfully:", result.user.displayName);
+    console.log("📧 Email:", result.user.email);
+    // The auth.onAuthStateChanged will handle the rest
+  } catch (error) {
+    console.error("❌ Sign in failed:", error.code, error.message);
     
-    // Send username to Flask backend
-    await fetch('/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `username=${encodeURIComponent(user.displayName)}`
-    });
-    
+    // Handle specific Firebase auth errors
+    if (error.code === 'auth/popup-blocked') {
+      alert("Pop-up was blocked. Please allow pop-ups and try again.");
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      alert("Sign-in cancelled. Please try again.");
+    } else if (error.code === 'auth/unauthorized-domain') {
+      alert("Error: This domain is not authorized in Firebase Console.\nPlease add it to: Authentication → Settings → Authorized domains");
+    } else {
+      alert("Sign in failed: " + error.message);
+    }
+  }
+}
+
+function handleLoginSuccess(user) {
     currentUser = user;
-    document.getElementById('signIn').style.display = 'none';
-    document.getElementById('cover').style.display = 'flex';
+    document.querySelector('.sign-in-page').style.display = 'none';
+    document.querySelector('.cover-page').style.display = 'flex'; 
     
-    // Initialize Socket.IO after authentication
+    // Set dynamic greeting
+    const userNameDisplay = document.getElementById('userNameDisplay');
+    if (userNameDisplay) userNameDisplay.textContent = user.displayName;
+    
     initSocket();
     
+    // Fetch user's persistent rooms for the dashboard
+    fetchUserRooms();
+}
+
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        try {
+            await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `username=${encodeURIComponent(user.displayName)}`
+            });
+        } catch (error) {
+            console.error("Backend sync failed:", error);
+        }
+        handleLoginSuccess(user);
+    }
+});
+
+async function logout() {
+  try {
+    stopRoomListener();
+    if (currentRoomId) {
+      await fetch(`/leave/${currentRoomId}`);
+    }
+    localStorage.removeItem('currentRoomId');
+    await auth.signOut();
+    window.location.href = "/";
   } catch (error) {
-    console.error("Sign in failed:", error.message);
+    console.error("Logout failed:", error);
   }
 }
 
 // ==========================
-// ✅ FIRESTORE REAL-TIME UPDATES
+// ✅ UI ANIMATIONS (UNCHANGED)
 // ==========================
-function startRoomListener(roomId) {
-  // Stop previous listener if exists
-  if (roomListener) {
-    roomListener();
-    roomListener = null;
+const cover = document.querySelector('.cover-page');
+const home = document.querySelector('.home-page');
+const glow = document.querySelector('.glow');
+let started = false;
+
+if(cover) {
+    cover.addEventListener('click', (e) => {
+      if (started) return;
+      started = true;
+      
+      createSparkles(e.clientX, e.clientY);
+      const bg = cover.querySelector('.bg');
+      if(bg) bg.classList.add('zoomed');
+      setTimeout(() => glow.classList.add('active'), 1000);
+      
+      setTimeout(() => {
+        cover.style.opacity = 0;
+        document.body.classList.add('loaded');
+        home.style.display = 'block';
+        
+        // Trigger Google Map Init
+        initMap(); 
+        
+      }, 3000);
+      
+      setTimeout(() => (cover.style.display = 'none'), 4000);
+    });
+}
+
+function createSparkles(x, y) {
+  for (let i = 0; i < 20; i++) {
+    const sparkle = document.createElement('div');
+    sparkle.className = 'sparkle';
+    const angle = Math.random() * 2 * Math.PI;
+    const distance = Math.random() * 60 + 20;
+    
+    sparkle.style.left = `${x}px`;
+    sparkle.style.top = `${y}px`;
+    sparkle.style.setProperty('--scatter-transform', `translate(${Math.cos(angle)*distance}px, ${Math.sin(angle)*distance}px)`);
+    
+    document.body.appendChild(sparkle);
+    setTimeout(() => sparkle.remove(), 800);
+  }
+}
+
+const menuBtn = document.getElementById('menuBtn');
+if(menuBtn) {
+    menuBtn.addEventListener('click', () => {
+      const menuOptions = document.querySelector('.menu-options');
+      const isOpen = menuOptions.style.display === 'flex';
+      menuOptions.style.display = isOpen ? 'none' : 'flex';
+      menuBtn.textContent = isOpen ? '≡' : '✕';
+    });
+}
+
+// ==========================
+// ✅ ROOM LOGIC - IMPROVED
+// ==========================
+function openRoomModal(type) {
+  const modal = document.getElementById('roomModal');
+  const createBtn = document.getElementById('createBtn');
+  const joinBtn = document.getElementById('joinBtn');
+  const modalTitle = document.getElementById('modalTitle');
+  const roomInput = document.getElementById('roomInput');
+  
+  roomInput.value = '';
+  roomInput.placeholder = type === 'create' ? 'Creating new room...' : 'Enter Room Code';
+  
+  if(type === 'create') {
+     modalTitle.textContent = 'Create Room';
+     createBtn.style.display = 'inline-block';
+     joinBtn.style.display = 'none';
+     roomInput.style.display = 'none';
+  } else {
+     modalTitle.textContent = 'Join Room';
+     createBtn.style.display = 'none';
+     joinBtn.style.display = 'inline-block';
+     roomInput.style.display = 'block';
+  }
+  modal.style.display = 'flex';
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('roomModal');
+    if (event.target == modal) closeRoomModal();
+}
+
+function closeRoomModal() {
+  const modal = document.getElementById('roomModal');
+  if (modal) modal.style.display = "none";
+}
+
+// ==========================
+// ✅ DASHBOARD & MULTI-ROOM
+// ==========================
+async function fetchUserRooms() {
+  try {
+    const response = await fetch('/api/user/rooms', {
+      credentials: 'include'
+    });
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      populateRoomsDropdown(data.rooms);
+    }
+  } catch (error) {
+    console.error('Error fetching user rooms:', error);
+  }
+}
+
+function populateRoomsDropdown(rooms) {
+  const dropdown = document.getElementById('roomsDropdown');
+  if (!dropdown) return;
+  
+  dropdown.innerHTML = '';
+  
+  if (!rooms || rooms.length === 0) {
+    dropdown.innerHTML = '<div style="padding: 10px; color: #aaa; font-size: 14px;">No active rooms</div>';
+    return;
   }
   
-  // Listen to real-time updates for room members
+  rooms.forEach(roomId => {
+    const btn = document.createElement('button');
+    btn.textContent = `Room: ${roomId}`;
+    btn.onclick = () => switchRoom(roomId);
+    dropdown.appendChild(btn);
+  });
+}
+
+function toggleRoomsDropdown() {
+  const dropdown = document.getElementById('roomsDropdown');
+  if (!dropdown) return;
+  dropdown.style.display = dropdown.style.display === 'flex' ? 'none' : 'flex';
+}
+
+// Close dropdown if clicked outside
+window.addEventListener('click', function(e) {
+  if (!document.getElementById('viewRoomsBtn')?.contains(e.target) && !document.getElementById('roomsDropdown')?.contains(e.target)) {
+    const dropdown = document.getElementById('roomsDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+  }
+});
+
+async function switchRoom(roomId) {
+  // If already in this room, do nothing
+  if (currentRoomId === roomId) {
+    await showRoomPage(roomId);
+    return;
+  }
+  
+  // If in another room, leave the socket for the old room
+  if (currentRoomId) {
+    stopRoomListener();
+    if (socket) {
+      socket.emit('leave', { username: currentUser?.displayName, room: currentRoomId });
+    }
+    Object.values(memberMarkers).forEach(marker => marker.setMap(null));
+    memberMarkers = {};
+  }
+  
+  currentRoomId = roomId;
+  localStorage.setItem('currentRoomId', roomId);
+  
+  const dropdown = document.getElementById('roomsDropdown');
+  if (dropdown) dropdown.style.display = 'none';
+  
+  await joinSocketRoom(roomId);
+  await startRoomListener(roomId);
+  await showRoomPage(roomId);
+}
+
+// ==========================
+// ✅ SETTINGS MODAL
+// ==========================
+function openSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function createRoom() {
+  if (!currentUser) return alert('Please sign in first');
+  
+  const createBtn = document.getElementById('createBtn');
+  const originalText = createBtn.textContent;
+  createBtn.innerHTML = 'Creating...<div class="spinner"></div>';
+  createBtn.disabled = true;
+
+  try {
+     const response = await fetch('/create_room', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       credentials: 'include'
+     });
+     
+     const data = await response.json();
+     
+     if (data.status === 'success') {
+       currentRoomId = data.room_id;
+       showRoomCodeModal(data.room_id);
+       closeRoomModal();
+     } else {
+       alert('Error: ' + data.message);
+     }
+  } catch (error) {
+     console.error("Create room failed", error);
+     alert('Failed to create room');
+  } finally {
+     createBtn.innerHTML = originalText;
+     createBtn.disabled = false;
+  }
+}
+
+function showRoomCodeModal(roomId) {
+  const modal = document.getElementById('roomModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const roomInput = document.getElementById('roomInput');
+  const createBtn = document.getElementById('createBtn');
+  const joinBtn = document.getElementById('joinBtn');
+  
+  modalTitle.textContent = '✅ Room Created!';
+  roomInput.value = roomId;
+  roomInput.readOnly = true;
+  roomInput.style.display = 'block';
+  roomInput.style.fontSize = '18px';
+  roomInput.style.fontWeight = 'bold';
+  roomInput.style.textAlign = 'center';
+  roomInput.style.cursor = 'pointer';
+  createBtn.style.display = 'none';
+  joinBtn.textContent = 'Copy & Enter Room';
+  joinBtn.style.display = 'inline-block';
+  
+  modal.style.display = 'flex';
+  
+  // Allow clicking to copy room code
+  roomInput.onclick = () => {
+    roomInput.select();
+    document.execCommand('copy');
+    alert('Room code copied to clipboard!');
+  };
+  
+  // Change button to enter room
+  joinBtn.onclick = async () => {
+    roomInput.select();
+    document.execCommand('copy');
+    
+    // Join the room
+    await switchRoom(roomId);
+    closeRoomModal();
+    fetchUserRooms(); // Refresh dashboard list
+  };
+}
+
+async function joinRoom() {
+  const roomCode = document.getElementById('roomInput').value.trim().toUpperCase();
+  if (!roomCode) {
+    alert('Please enter a room code');
+    return;
+  }
+  
+  if (!currentUser) return alert('Please sign in first');
+  
+  const joinBtn = document.getElementById('joinBtn');
+  const originalText = joinBtn.textContent;
+  joinBtn.innerHTML = 'Joining...<div class="spinner"></div>';
+  joinBtn.disabled = true;
+
+  try {
+    const response = await fetch('/join_room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ room_code: roomCode })
+    });
+    
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      await switchRoom(data.room_id);
+      closeRoomModal();
+      fetchUserRooms(); // Refresh dashboard list
+    } else {
+      alert('Error: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Join failed', error);
+    alert('Failed to join room');
+  } finally {
+    joinBtn.innerHTML = originalText;
+    joinBtn.disabled = false;
+  }
+}
+
+async function leaveRoom() {
+  if (!currentRoomId) return;
+  
+  stopRoomListener();
+  
+  if (socket) {
+    socket.emit('leave', { username: currentUser?.displayName, room: currentRoomId });
+  }
+  
+  try { 
+    await fetch(`/leave/${currentRoomId}`, { 
+      method: 'POST',
+      credentials: 'include'
+    }); 
+  } catch (e) {}
+  
+  // Cleanup local state
+  Object.values(memberMarkers).forEach(marker => marker.setMap(null));
+  memberMarkers = {};
+  
+  localStorage.removeItem('currentRoomId');
+  currentRoomId = null;
+  
+  // Refresh dashboard list
+  fetchUserRooms();
+  
+  // Go back to home
+  const roomPage = document.getElementById('roomPage');
+  const home = document.querySelector('.home-page');
+  if (roomPage) roomPage.style.display = 'none';
+  if (home) home.style.display = 'flex';
+  
+  // Reset map
+  if (map) {
+    map = null;
+    const mapElement = document.getElementById("mapImage");
+    mapElement.innerHTML = '';
+    initMap();
+  }
+}
+
+function goToDashboard() {
+  const roomPage = document.getElementById('roomPage');
+  const home = document.querySelector('.home-page');
+  
+  if (roomPage) roomPage.style.display = 'none';
+  if (home) home.style.display = 'flex';
+  
+  // Refresh the dashboard room list
+  fetchUserRooms();
+}
+
+async function joinSocketRoom(roomId) {
+  if (socket && currentUser) {
+    socket.emit('join', { username: currentUser.displayName, room: roomId });
+  }
+}
+
+async function showRoomPage(roomId) {
+  const home = document.querySelector('.home-page');
+  const roomPage = document.getElementById('roomPage');
+  
+  if (home) home.style.display = 'none';
+  if (roomPage) roomPage.style.display = 'block';
+  
+  const sidePanels = document.querySelector('.side-panels');
+  if (sidePanels) sidePanels.style.display = 'flex';
+  
+  document.getElementById('roomIdDisplay').textContent = roomId;
+  
+  // Initialize room map
+  setTimeout(() => {
+    const roomMapContainer = document.getElementById('roomPageMap');
+    if (roomMapContainer && !roomMapContainer.dataset.mapInitialized) {
+      initRoomMap(roomMapContainer);
+      roomMapContainer.dataset.mapInitialized = 'true';
+    }
+  }, 500);
+}
+
+// ==========================
+// ✅ SERVER / PERSISTENCE INIT
+// ==========================
+async function initRoomFromServer(roomId) {
+  currentRoomId = roomId;
+  localStorage.setItem('currentRoomId', roomId);
+  
+  // Need to wait until currentUser is populated
+  const checkUserInterval = setInterval(async () => {
+    if (currentUser) {
+      clearInterval(checkUserInterval);
+      
+      // Stop the main cover animation if it's still running
+      const coverPage = document.getElementById('cover');
+      if (coverPage) coverPage.style.display = 'none';
+      document.body.classList.add('loaded');
+      
+      if (!map) initMap();
+      
+      // Auto-join the specific room
+      await switchRoom(roomId);
+    }
+  }, 100);
+}
+
+// ==========================
+// ✅ MESSAGING
+// ==========================
+function sendMessage() {
+  const messageInput = document.getElementById('messageInput');
+  const message = messageInput.value.trim();
+  
+  if (message && socket && currentRoomId && currentUser) {
+    socket.emit('send_message', {
+      username: currentUser.displayName,
+      message: message,
+      room: currentRoomId,
+      timestamp: new Date().toLocaleTimeString()
+    });
+    messageInput.value = '';
+  }
+}
+
+function displayMessage(username, message, timestamp) {
+  const chatMessages = document.getElementById('chatMessages');
+  if (!chatMessages) return;
+  
+  const messageElement = document.createElement('div');
+  messageElement.className = 'message';
+  
+  const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString() : '';
+  const isOwn = currentUser && username === currentUser.displayName;
+  
+  messageElement.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: start;">
+      <strong style="color: ${isOwn ? '#00ff00' : '#00b4ff'}">${username}</strong>
+      <span class="message-time">${timeStr}</span>
+    </div>
+    <div style="margin-top: 4px;">${message}</div>
+  `;
+  
+  chatMessages.appendChild(messageElement);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ==========================
+// ✅ FIRESTORE SYNC - ENHANCED
+// ==========================
+function startRoomListener(roomId) {
+  if (roomListener) roomListener();
+  memberMarkers = {}; 
+  
   roomListener = db.collection('rooms').doc(roomId).onSnapshot((doc) => {
     if (doc.exists) {
-      const roomData = doc.data();
-      const members = roomData.members || [];
-      updateMembersList(members);
+      const roomData = doc.to_dict?.() || doc.data?.() || doc;
       
-      console.log('📡 Real-time update - Room members:', members);
-    } else {
-      console.log('Room no longer exists');
-      // Room was deleted, redirect to home
-      leaveRoom();
+      // Update members display
+      updateMembersList(roomData.members || []);
+      
+      // Update locations
+      updateRoomMembersLocations(roomData);
     }
-  }, (error) => {
-    console.error('Error listening to room updates:', error);
   });
 }
 
@@ -113,375 +626,382 @@ function updateMembersList(members) {
   members.forEach(member => {
     const li = document.createElement('li');
     li.textContent = member;
-    if (member === currentUser?.displayName) {
-      li.style.fontWeight = 'bold';
-      li.style.color = '#007bff';
-      li.textContent += ' (You)';
+    if (currentUser && member === currentUser.displayName) {
+      li.classList.add('own-member');
+      li.textContent = '✅ ' + member + ' (You)';
     }
     membersList.appendChild(li);
   });
 }
 
 // ==========================
-// ✅ COVER PAGE TO HOME PAGE TRANSITION
+// 🗺️ GOOGLE MAPS LOGIC WITH LIVE TUNER & ROOM MAP
 // ==========================
-const cover = document.getElementById('cover');
-const coverImage = document.getElementById('coverImage');
-const home = document.getElementById('home');
-const glow = document.getElementById('glow');
-let started = false;
+let map;
+let roomMap;
+let overlay;
+let roomOverlay;
+let myMarker;
+let memberMarkers = {};
 
-cover?.addEventListener('click', (e) => {
-  if (started) return;
-  started = true;
-
-  createSparkles(e.clientX, e.clientY);
-  coverImage.classList.add('zoomed');
-
-  setTimeout(() => glow.classList.add('active'), 1000);
-  setTimeout(() => {
-    cover.style.opacity = 0;
-    home.style.display = 'flex';
-    home.style.opacity = 1;
-    initLocationTracking();
-  }, 3000);
-  setTimeout(() => (cover.style.display = 'none'), 4000);
-});
-
-// ==========================
-// ✅ SPARKLES
-// ==========================
-function createSparkles(x, y) {
-  for (let i = 0; i < 20; i++) {
-    const sparkle = document.createElement('div');
-    sparkle.className = 'sparkle';
-
-    const angle = Math.random() * 2 * Math.PI;
-    const distance = Math.random() * 60 + 20;
-    const dx = Math.cos(angle) * distance;
-    const dy = Math.sin(angle) * distance;
-
-    sparkle.style.left = `${x}px`;
-    sparkle.style.top = `${y}px`;
-    sparkle.style.setProperty('--scatter-transform', `translate(${dx}px, ${dy}px)`);
-
-    document.body.appendChild(sparkle);
-    setTimeout(() => sparkle.remove(), 800);
-  }
-}
-
-// ==========================
-// ✅ MENU TOGGLE
-// ==========================
-const menuBtn = document.getElementById('menuBtn');
-const menuOptions = document.getElementById('menuOptions');
-
-menuBtn?.addEventListener('click', () => {
-  const isOpen = menuOptions.style.display === 'flex';
-  menuOptions.style.display = isOpen ? 'none' : 'flex';
-  menuBtn.textContent = isOpen ? '≡' : '✕';
-});
-
-// ==========================
-// ✅ MAP ZOOM CONTROLS
-// ==========================
-const mapImage = document.querySelector('.map-image');
-let currentScale = 1;
-const MIN_SCALE = 0.3;
-const MAX_SCALE = 2;
-
-function applyMapScale() {
-  mapImage.style.transform = `scale(${currentScale})`;
-  mapImage.style.transformOrigin = 'top left';
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('zoomIn')?.addEventListener('click', () => {
-    if (currentScale < MAX_SCALE) {
-      currentScale = Math.min(currentScale + 0.1, MAX_SCALE);
-      applyMapScale();
-    }
-  });
-
-  document.getElementById('zoomOut')?.addEventListener('click', () => {
-    if (currentScale > MIN_SCALE) {
-      currentScale = Math.max(currentScale - 0.1, MIN_SCALE);
-      applyMapScale();
-    }
-  });
-
-  // Menu button event listeners
-  document.getElementById('createRoomBtn')?.addEventListener('click', () => {
-    openRoomModal('create');
-  });
-
-  document.getElementById('joinRoomBtn')?.addEventListener('click', () => {
-    openRoomModal('join');
-  });
-
-  // Enter key to send message
-  document.getElementById('messageInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      sendMessage();
-    }
-  });
-});
-
-// ==========================
-// ✅ LOGOUT
-// ==========================
-async function logout() {
-  stopRoomListener(); // Stop Firestore listener
-  await auth.signOut();
-  // Also logout from Flask backend
-  await fetch('/logout');
-  location.reload();
-}
-
-// ==========================
-// ✅ ROOM SYSTEM
-// ==========================
-function openRoomModal(type) {
-  const modal = document.getElementById('roomModal');
-  const title = document.getElementById('modalTitle');
-  const createBtn = document.getElementById('createBtn');
-  const joinBtn = document.getElementById('joinBtn');
+function initRoomMap(containerElement) {
+  if (roomMap) return;
   
-  if (type === 'create') {
-    title.textContent = 'Create Room';
-    createBtn.style.display = 'inline-block';
-    joinBtn.style.display = 'none';
-  } else {
-    title.textContent = 'Join Room';
-    createBtn.style.display = 'none';
-    joinBtn.style.display = 'inline-block';
-  }
+  // Center on JIIT Campus
+  const centerPoint = { lat: 28.6315, lng: 77.3745 };
   
-  modal.style.display = 'flex';
+  roomMap = new google.maps.Map(containerElement, {
+    zoom: 18,
+    center: centerPoint,
+    mapTypeId: 'roadmap',
+    disableDefaultUI: true,
+    styles: mapStyles,
+    gestureHandling: 'greedy',
+    zoomControl: false,
+    fullscreenControl: false,
+    mapTypeControl: false,
+    streetViewControl: false,
+    backgroundColor: '#000000'
+  });
+  
+  // Load overlay for room map
+  loadRoomOverlay(currentBounds);
+  
+  // Start location tracking for room map
+  startLocationTrackingForRoom();
+  
+  console.log("✅ Room Map Initialized");
 }
 
-function closeRoomModal() {
-  document.getElementById('roomModal').style.display = 'none';
-  document.getElementById('roomInput').value = '';
+function loadRoomOverlay(bounds) {
+  if (roomOverlay) roomOverlay.setMap(null);
+  
+  const imagePath = "/static/Images/final-map-page-jmd.png";
+  
+  roomOverlay = new google.maps.GroundOverlay(imagePath, bounds, {
+    opacity: 1.0,
+    map: roomMap
+  });
 }
 
-async function createRoom() {
-  if (!currentUser) {
-    alert('Please sign in first');
-    return;
-  }
+let currentBounds = {
+    north: 28.6313, 
+    south: 28.6287, 
+    east:  77.3750, 
+    west:  77.3703 
+};
 
-  try {
-    const response = await fetch('/create_room');
-    if (response.redirected) {
-      // Extract room ID from redirect URL
-      const url = new URL(response.url);
-      const roomId = url.pathname.split('/').pop();
-      
-      currentRoomId = roomId;
-      joinSocketRoom(roomId);
-      startRoomListener(roomId); // Start Firestore listener
-      showRoomPage(roomId);
-      closeRoomModal();
-      
-      console.log(`✅ Created and joined room: ${roomId}`);
+// Map Styles (FULLY HIDE all Google Maps background)
+const mapStyles = [
+    { featureType: "all", elementType: "all", stylers: [{ visibility: "off" }] },
+    { featureType: "all", elementType: "labels", stylers: [{ visibility: "off" }] },
+    { featureType: "all", elementType: "geometry", stylers: [{ visibility: "off" }] },
+    { featureType: "road", stylers: [{ visibility: "off" }] },
+    { featureType: "water", stylers: [{ visibility: "off" }] },
+    { featureType: "poi", stylers: [{ visibility: "off" }] },
+    { featureType: "landscape", stylers: [{ visibility: "off" }] },
+    { featureType: "transit", stylers: [{ visibility: "off" }] },
+    { featureType: "administrative", stylers: [{ visibility: "off" }] }
+];
+
+function initMap() {
+    if (map) return;
+
+    const mapElement = document.getElementById("mapImage");
+    if (mapElement.tagName === 'IMG') {
+        console.warn("Please change #mapImage tag from <img> to <div> in HTML!");
     }
-  } catch (error) {
-    console.error('Error creating room:', error);
-    alert('Failed to create room');
-  }
-}
 
-async function joinRoom() {
-  const roomCode = document.getElementById('roomInput').value.trim();
-  
-  if (!roomCode) {
-    alert('Please enter a room code');
-    return;
-  }
+    // Center on JIIT Campus
+    const centerPoint = { lat: 28.6315, lng: 77.3745 };
 
-  if (!currentUser) {
-    alert('Please sign in first');
-    return;
-  }
-
-  try {
-    const response = await fetch('/join_room', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `room_code=${encodeURIComponent(roomCode)}`
-    });
-
-    if (response.ok) {
-      if (response.redirected) {
-        // Extract room ID from redirect URL
-        const url = new URL(response.url);
-        const roomId = url.pathname.split('/').pop();
+    map = new google.maps.Map(mapElement, {
+        zoom: 18,
+        center: centerPoint,
+        mapTypeId: 'roadmap',  // Changed from satellite to avoid tile visibility
+        disableDefaultUI: true,
         
-        currentRoomId = roomId;
-        joinSocketRoom(roomId);
-        startRoomListener(roomId); // Start Firestore listener
-        showRoomPage(roomId);
-        closeRoomModal();
-        
-        console.log(`✅ Joined room: ${roomId}`);
-      }
-    } else {
-      const text = await response.text();
-      alert(text || 'Invalid room code or failed to join');
-    }
-  } catch (error) {
-    console.error('Error joining room:', error);
-    alert('Failed to join room');
-  }
-}
-
-function joinSocketRoom(roomId) {
-  if (socket && currentUser) {
-    socket.emit('join', {
-      username: currentUser.displayName,
-      room: roomId
+        styles: mapStyles,
+        gestureHandling: 'greedy',
+        zoomControl: false,
+        fullscreenControl: false,
+        mapTypeControl: false,
+        streetViewControl: false
     });
-  }
+
+    // Hide all map tiles by covering with invisible overlay
+    const hideMapElement = document.createElement('div');
+    hideMapElement.id = 'hideMapTiles';
+    hideMapElement.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        pointer-events: none;
+        z-index: 0;
+    `;
+    mapElement.appendChild(hideMapElement);
+
+    // 1. Load the Overlay (Calling helper function)
+    loadOverlay(currentBounds);
+
+    console.log("✅ Map Initialized. Type tuneMap() in console to adjust overlay.");
+    startLocationTracking();
 }
 
-async function leaveRoom() {
-  if (currentRoomId) {
-    try {
-      stopRoomListener(); // Stop Firestore listener
-      
-      // Leave via socket
-      if (socket && currentUser) {
-        socket.emit('leave', {
-          username: currentUser.displayName,
-          room: currentRoomId
-        });
-      }
-      
-      // Leave via HTTP
-      await fetch(`/leave/${currentRoomId}`);
-      
-      currentRoomId = null;
-      document.getElementById('home').style.display = 'flex';
-      document.getElementById('roomPage').style.display = 'none';
-      
-      console.log('✅ Left room successfully');
-    } catch (error) {
-      console.error('Error leaving room:', error);
-    }
-  }
-}
+// Helper to reload overlay dynamically
+function loadOverlay(bounds) {
+    if (overlay) overlay.setMap(null); // Remove old overlay
 
-function showRoomPage(roomId) {
-  document.getElementById('home').style.display = 'none';
-  document.getElementById('roomPage').style.display = 'block';
-  document.getElementById('roomIdDisplay').textContent = roomId;
-  
-  // Clear previous messages
-  const chatMessages = document.getElementById('chatMessages');
-  if (chatMessages) {
-    chatMessages.innerHTML = '';
-  }
-}
-
-function sendMessage() {
-  const messageInput = document.getElementById('messageInput');
-  const message = messageInput.value.trim();
-  
-  if (message && socket && currentRoomId && currentUser) {
-    socket.emit('send_message', {
-      username: currentUser.displayName,
-      message: message,
-      room: currentRoomId
+    const imagePath = "/static/Images/final-map-page-jmd.png"; 
+    
+    overlay = new google.maps.GroundOverlay(imagePath, bounds, {
+        opacity: 1.0, // Fully opaque - custom map is the only visible layer
+        map: map
     });
-    messageInput.value = '';
-  }
 }
 
-function displayMessage(username, message) {
-  const chatMessages = document.getElementById('chatMessages');
-  if (!chatMessages) return;
-  
-  const messageElement = document.createElement('div');
-  messageElement.className = 'message';
-  
-  // Add timestamp
-  const now = new Date();
-  const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-  
-  messageElement.innerHTML = `
-    <span class="message-time">[${timeString}]</span>
-    <strong>${username}:</strong> ${message}
-  `;
-  
-  chatMessages.appendChild(messageElement);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+// 🚨 LIVE TUNING FUNCTION
+// Call this from the browser console: tuneMap(north, south, east, west)
+// Example: tuneMap(28.6328, 28.6304, 77.3762, 77.3728)
+window.tuneMap = function(north, south, east, west) {
+    currentBounds = { north, south, east, west };
+    loadOverlay(currentBounds);
+    console.log("✅ Map Bounds Updated:", currentBounds);
+    console.log("📍 Bounds Details:");
+    console.log(`   North: ${north}, South: ${south}`);
+    console.log(`   East: ${east}, West: ${west}`);
+    console.log("📌 Tip: Adjust bounds to completely cover the viewport with your image");
+};
 
-// ==========================
-// ✅ LOCATION TRACKING
-// ==========================
-function initLocationTracking() {
-  console.log("📡 initLocationTracking() called");
+// Helper function to show current bounds
+window.showBounds = function() {
+    console.log("Current Bounds:", currentBounds);
+    return currentBounds;
+};
 
-  if (!navigator.geolocation) {
-    alert("Geolocation is not supported by your browser.");
-    return;
-  }
+// Helper to expand bounds (useful for covering edges)
+window.expandBounds = function(factor = 1.2) {
+    const centerLat = (currentBounds.north + currentBounds.south) / 2;
+    const centerLng = (currentBounds.east + currentBounds.west) / 2;
+    const latDiff = (currentBounds.north - currentBounds.south) * (factor - 1) / 2;
+    const lngDiff = (currentBounds.east - currentBounds.west) * (factor - 1) / 2;
+    
+    const newBounds = {
+        north: centerLat + latDiff,
+        south: centerLat - latDiff,
+        east: centerLng + lngDiff,
+        west: centerLng - lngDiff
+    };
+    
+    window.tuneMap(newBounds.north, newBounds.south, newBounds.east, newBounds.west);
+};
 
-  const mapImage = document.getElementById("mapImage");
-  const marker = document.createElement("div");
-  marker.className = "user-location";
-  mapImage.parentElement.appendChild(marker);
-
-  // 🌏 India bounding box (approx.)
-  const latTop = 37.6;
-  const latBottom = 6.5;
-  const lonLeft = 68.1;
-  const lonRight = 97.4;
-
-  // 🗺 Map dimensions (must match actual image size in px)
-  const mapWidth = 6202.6;
-  const mapHeight = 2481.04;
-
-  navigator.geolocation.watchPosition(
-    (position) => {
-      const { latitude, longitude } = position.coords;
-
-      if (
-        latitude > latTop || latitude < latBottom ||
-        longitude < lonLeft || longitude > lonRight
-      ) {
-        marker.style.display = "none";
-        console.warn("🚫 Out of bounds.");
+function startLocationTracking() {
+    if (!navigator.geolocation) {
+        console.warn('Geolocation not available');
         return;
-      }
-
-      marker.style.display = "block";
-
-      const xRatio = (longitude - lonLeft) / (lonRight - lonLeft);
-      const yRatio = (latTop - latitude) / (latTop - latBottom);
-
-      const x = xRatio * mapWidth;
-      const y = yRatio * mapHeight;
-
-      marker.style.left = `${x}px`;
-      marker.style.top = `${y}px`;
-
-      console.log("Latitude:", latitude);
-      console.log("Longitude:", longitude);
-      console.log("Mapped X:", x);
-      console.log("Mapped Y:", y);
-    },
-    (error) => {
-      console.error("⚠️ Location error:", error.message);
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000
     }
-  );
+
+    if (locationWatchId) {
+        navigator.geolocation.clearWatch(locationWatchId);
+    }
+
+    locationWatchId = navigator.geolocation.watchPosition((pos) => {
+        if (!locationSharingEnabled) return;
+        
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const userPos = { lat, lng };
+        
+        if (map && !myMarker) {
+            myMarker = new google.maps.Marker({
+                map: map,
+                title: "Me",
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#00FF00",
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: "white",
+                }
+            });
+        }
+        
+        if (myMarker) {
+            myMarker.setPosition(userPos);
+        }
+
+        if (currentRoomId && currentUser) {
+            updateUserLocationInRoom(lat, lng);
+        }
+
+    }, (err) => {
+        console.error('Geolocation error:', err);
+    }, { 
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+    });
 }
+
+function startLocationTrackingForRoom() {
+    if (!navigator.geolocation) {
+        console.warn('Geolocation not available');
+        return;
+    }
+
+    if (locationWatchId) {
+        navigator.geolocation.clearWatch(locationWatchId);
+    }
+
+    locationWatchId = navigator.geolocation.watchPosition((pos) => {
+        if (!locationSharingEnabled) return;
+        
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const userPos = { lat, lng };
+        
+        if (roomMap && !myMarker) {
+            myMarker = new google.maps.Marker({
+                map: roomMap,
+                title: "Me (" + currentUser?.displayName + ")",
+                label: { 
+                    text: "ME", 
+                    color: "white", 
+                    fontSize: "12px",
+                    fontWeight: "bold"
+                },
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: "#FF0000",
+                    fillOpacity: 1,
+                    strokeWeight: 3,
+                    strokeColor: "#FFFF00",
+                }
+            });
+        }
+        
+        if (myMarker && roomMap) {
+            myMarker.setPosition(userPos);
+            myMarker.setMap(roomMap);
+        }
+
+        if (currentRoomId && currentUser) {
+            updateUserLocationInRoom(lat, lng);
+        }
+
+    }, (err) => {
+        console.error('Geolocation error:', err);
+    }, { 
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+    });
+}
+
+function togglePrivacy(checkbox) {
+    locationSharingEnabled = checkbox.checked;
+    
+    // Update both toggles
+    document.getElementById('privacyToggleSettings').checked = locationSharingEnabled;
+    
+    if (!locationSharingEnabled) {
+        // Stop tracking temporarily
+        if (myMarker) {
+            myMarker.setMap(null);
+            myMarker = null;
+        }
+        
+        // Remove from firebase
+        if (currentRoomId && currentUser) {
+            db.collection('rooms').doc(currentRoomId).set({
+                members_locations: {
+                    [currentUser.displayName]: firebase.firestore.FieldValue.delete()
+                }
+            }, { merge: true });
+        }
+        alert('Location sharing disabled. Your location will not be visible to others.');
+    } else {
+        // Restart tracking
+        if (currentRoomId) {
+            startLocationTrackingForRoom();
+        } else {
+            startLocationTracking();
+        }
+        alert('Location sharing enabled. Your location will be visible to room members.');
+    }
+}
+
+function updateUserLocationInRoom(lat, lng) {
+    if(!currentRoomId) return;
+    db.collection('rooms').doc(currentRoomId).set({
+        members_locations: {
+            [currentUser.displayName]: {
+                latitude: lat, 
+                longitude: lng, 
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }
+        }
+    }, { merge: true });
+}
+
+function updateRoomMembersLocations(roomData) {
+    const locs = roomData.members_locations || {};
+    
+    const mapToUse = roomMap || map;
+    if (!mapToUse) return;
+    
+    Object.keys(locs).forEach(name => {
+        if (currentUser && name === currentUser.displayName) return;
+        
+        const loc = locs[name];
+        if (!loc) return;
+        
+        const pos = { lat: loc.latitude, lng: loc.longitude };
+
+        if (!memberMarkers[name]) {
+            memberMarkers[name] = new google.maps.Marker({
+                position: pos,
+                map: mapToUse,
+                label: { 
+                    text: name, 
+                    color: "white", 
+                    fontSize: "12px", 
+                    className: "map-label" 
+                },
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 6,
+                    fillColor: "#007bff",
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: "white",
+                }
+            });
+        } else {
+            memberMarkers[name].setPosition(pos);
+        }
+    });
+
+    Object.keys(memberMarkers).forEach(name => {
+        if (!locs[name]) {
+            memberMarkers[name].setMap(null);
+            delete memberMarkers[name];
+        }
+    });
+}
+
+// ==========================
+// ✅ BOOTSTRAP
+// ==========================
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('createRoomBtn')?.addEventListener('click', () => openRoomModal('create'));
+    document.getElementById('joinRoomBtn')?.addEventListener('click', () => openRoomModal('join'));
+    
+    window.initMap = initMap;
+});

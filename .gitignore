@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive - NEVER COMMIT THESE
+serviceAccountKey.json
+.env
+.env.local
+*.key
+*.pem
+
+# Node/Frontend (if using)
+node_modules/
+.next/
+npm-debug.log
+
+# Project specific
+*.log
+.cache/
+temp/
+.pytest_cache/
+htmlcov/
+
+# Temporary files
+*.tmp
+*.bak
+~*
